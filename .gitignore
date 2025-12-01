@@ -1,0 +1,22 @@
+# === Python 编译垃圾 ===
+__pycache__/
+*.py[cod]
+*$py.class
+
+# === Mac 系统自动生成的文件 ===
+.DS_Store
+
+# === 敏感配置 ===
+.env
+api_key.txt
+
+# === 数据库文件 ===
+db/
+chroma_db/
+*.sqlite3
+
+# === 虚拟环境 ===
+venv/
+env/
+.venv/
+.conda/
