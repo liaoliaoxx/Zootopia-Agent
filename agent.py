@@ -1,5 +1,6 @@
 from memory import MemoryStream
 from utils import call_llm
+from experience import ExperienceManager
 import time
 import re
 
@@ -10,6 +11,7 @@ class ZootopiaAgent:
         self.speech_style = speech_style
         self.is_slow = is_slow
         self.memory = MemoryStream(name)
+        self.exp_manager = ExperienceManager()
 
     def perceive(self, event):
         """感知环境并存入记忆"""
@@ -24,12 +26,22 @@ class ZootopiaAgent:
         related_memories = self.memory.retrieve(current_context)
         memory_text = "\n".join([f"- {m}" for m in related_memories])
 
+        # 参考 CFGM 论文：Retrieve relevant tips as context
+        retrieved_tips = self.exp_manager.retrieve_relevant_tips(current_context, self.name)
+        tips_text = ""
+        if retrieved_tips:
+            tips_text = "【🌟 经验锦囊 (Relevant Tips)】\n" + "\n".join([f"💡 {tip}" for tip in retrieved_tips])
+        else:
+            tips_text = "（暂无相关经验提示）"
+
         # 2. 构建 Prompt
         prompt = f"""
         【角色设定】
         你是 {self.name}。
         你的性格设定: {self.persona}
         你的说话风格: {self.speech_style}
+
+        {tips_text}
 
         【相关记忆】
         {memory_text}
@@ -38,12 +50,12 @@ class ZootopiaAgent:
         {current_context}
 
         【指令】
-        1. 请首先进行内心思考 (Thought)，结合记忆分析局势。
+        1. 请首先进行内心思考 (Thought)。**请务必参考【经验锦囊】中的建议**（如果有），调整你的策略。
         2. 然后输出口头回复 (Response)。
         3. 必须使用中文。
         4. 严格遵守格式：
         **Thought:**
-        (你的思考)
+        (你的思考，如果参考了Tips请明确提到)
         **Response:**
         (你的回复)
         """
