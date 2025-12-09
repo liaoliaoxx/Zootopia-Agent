@@ -2,7 +2,7 @@ from openai import OpenAI
 import os
 
 client = OpenAI(
-    api_key="", # 设置你的 API KEY
+    api_key="ms-94509411-62de-491d-ae1b-6ee3612123b1", # 设置你的 API KEY
     base_url="https://api-inference.modelscope.cn/v1" 
 )
 

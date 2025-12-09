@@ -14,8 +14,28 @@ class ZootopiaAgent:
         self.exp_manager = ExperienceManager()
 
     def perceive(self, event):
-        """感知环境并存入记忆"""
+        """
+        感知环境并存入记忆
+        包含：数据清洗（去除思维链、去除冗余省略号）
+        """
+        # 1. 清洗思维链 (Thought Process)
+        # 只要 Response 部分，不要 Thought 部分
         clean_event = re.sub(r"\*\*Thought:\*\*.*?\*\*Response:\*\*", "", event, flags=re.DOTALL).strip()
+        
+        # 2. === 新增优化：清洗闪电的口癖 (Ellipsis Noise Removal) ===
+        # 逻辑：把连续 2 个以上的点 (..) 或句号 (。。) 或省略号 (…) 替换为空
+        # 这样 "我...是...闪电..." 就会变成 "我是闪电"
+        # 这里的正则匹配：
+        # \.      -> 英文点
+        # 。      -> 中文句号（防止有人用句号当省略号）
+        # …       -> 中文省略号
+        # {2,}    -> 出现2次及以上
+        clean_event = re.sub(r"[\.。…]{2,}", "", clean_event)
+        
+        # 3. 去除清洗后可能多余的空格
+        clean_event = clean_event.replace("  ", " ").strip()
+
+        # 4. 存入记忆库
         self.memory.add_memory(clean_event)
 
     def think_and_act(self, current_context):
