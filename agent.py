@@ -83,4 +83,4 @@ class ZootopiaAgent:
             print(f"🕒 ...{self.name} 反应非常缓慢...")
             time.sleep(2)
 
-        return speech
+        return thought, speech
