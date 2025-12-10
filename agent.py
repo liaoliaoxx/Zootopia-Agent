@@ -10,8 +10,17 @@ class ZootopiaAgent:
         self.persona = persona
         self.speech_style = speech_style
         self.is_slow = is_slow
+        
         safe_name = name.replace(" ", "_")
+        
+        # 1. 记忆系统 (A-MEM)
         self.memory = AgenticMemorySystem(agent_name=safe_name)
+        
+        # 2. 经验系统 (CFGM)
+        # 注意：ExperienceManager 内部会加载模型，如果创建多个 Agent，
+        # 为了节省内存，可以在 main.py 创建一个全局 manager 传进来。
+        # 但为了代码解耦，这里每个 Agent 实例化一个也可以，
+        # 因为 SentenceTransformer 内部有缓存机制，不会重复下载模型。
         self.exp_manager = ExperienceManager()
 
     def perceive(self, event):
@@ -19,47 +28,38 @@ class ZootopiaAgent:
         感知环境并存入记忆
         包含：数据清洗（去除思维链、去除冗余省略号）
         """
-        # 1. 清洗思维链 (Thought Process)
-        # 只要 Response 部分，不要 Thought 部分
+        # 1. 清洗思维链
         clean_event = re.sub(r"\*\*Thought:\*\*.*?\*\*Response:\*\*", "", event, flags=re.DOTALL).strip()
         
-        # 2. === 新增优化：清洗闪电的口癖 (Ellipsis Noise Removal) ===
-        # 逻辑：把连续 2 个以上的点 (..) 或句号 (。。) 或省略号 (…) 替换为空
-        # 这样 "我...是...闪电..." 就会变成 "我是闪电"
-        # 这里的正则匹配：
-        # \.      -> 英文点
-        # 。      -> 中文句号（防止有人用句号当省略号）
-        # …       -> 中文省略号
-        # {2,}    -> 出现2次及以上
+        # 2. 清洗口癖
         clean_event = re.sub(r"[\.。…]{2,}", "", clean_event)
-        
-        # 3. 去除清洗后可能多余的空格
         clean_event = clean_event.replace("  ", " ").strip()
 
-        # 4. 存入记忆库
+        # 3. 存入 A-MEM (Core Logic)
         self.memory.add_memory(clean_event)
 
     def think_and_act(self, current_context):
         """
         核心循环：检索记忆 -> 思考(CoT) -> 说话
         """
-        # 1. 检索相关记忆
+        # 1. A-MEM 记忆检索 (Retrieve Relevant Memories)
         related_memories = self.memory.retrieve(current_context, k=3)
-        # 格式化记忆内容，把 A-MEM 生成的高级属性展示给 LLM
         memory_text = "\n".join([
             f"- [标签:{','.join(m['tags'])}] {m['content']} (背景:{m['context']})" 
             for m in related_memories
         ])
 
-        # 参考 CFGM 论文：Retrieve relevant tips as context
-        retrieved_tips = self.exp_manager.retrieve_relevant_tips(current_context, self.name)
+        # 2. CFGM 经验检索 (Retrieve Relevant Tips via Vector Search)
+        # 这里的 k=2 表示只取最相关的 2 条锦囊，避免 Prompt 过长
+        retrieved_tips = self.exp_manager.retrieve_relevant_tips(current_context, self.name, k=2)
+        
         tips_text = ""
         if retrieved_tips:
             tips_text = "【🌟 经验锦囊 (Relevant Tips)】\n" + "\n".join([f"💡 {tip}" for tip in retrieved_tips])
         else:
             tips_text = "（暂无相关经验提示）"
 
-        # 2. 构建 Prompt
+        # 3. 构建 Prompt
         prompt = f"""
         【角色设定】
         你是 {self.name}。
@@ -85,28 +85,20 @@ class ZootopiaAgent:
         (你的回复)
         """
 
-        # 3. 调用大模型
+        # 4. 调用大模型
         full_response = call_llm(prompt)
         
-        # 4. 解析输出 (Robust Parsing)
+        # 5. 解析输出
         thought = "（未检测到思考过程）"
-        speech = full_response # 默认值为原始内容，防止正则匹配失败
+        speech = full_response
 
-        # 正则表达式解释：
-        # \*\*Thought:\*\* -> 匹配 **Thought:** 标签
-        # (.*?)             -> 非贪婪匹配思考内容 (Group 1)
-        # \*\*Response:\*\* -> 匹配 **Response:** 标签
-        # (.*)              -> 匹配剩余所有内容作为回复 (Group 2)
-        # re.DOTALL         -> 让 . 号也能匹配换行符
         pattern = re.compile(r"\*\*Thought:\*\*(.*?)\*\*Response:\*\*(.*)", re.DOTALL | re.IGNORECASE)
-        
         match = pattern.search(full_response)
         
         if match:
             thought = match.group(1).strip()
             speech = match.group(2).strip()
         else:
-            # 备用方案：如果 LLM 没写**，只写了 Response:
             if "Response:" in full_response:
                 parts = full_response.split("Response:", 1)
                 thought = parts[0].replace("Thought:", "").strip()
@@ -114,7 +106,6 @@ class ZootopiaAgent:
 
         print(f"\n💭 [{self.name} 的内心独白]: {thought}")
         
-        # 模拟闪电的反应慢
         if self.is_slow:
             time.sleep(2)
             print(f"🕒 ...{self.name} 反应非常缓慢...")
