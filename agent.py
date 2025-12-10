@@ -1,4 +1,4 @@
-from memory import MemoryStream
+from agentic_memory.core import AgenticMemorySystem
 from utils import call_llm
 from experience import ExperienceManager
 import time
@@ -10,7 +10,8 @@ class ZootopiaAgent:
         self.persona = persona
         self.speech_style = speech_style
         self.is_slow = is_slow
-        self.memory = MemoryStream(name)
+        safe_name = name.replace(" ", "_")
+        self.memory = AgenticMemorySystem(agent_name=safe_name)
         self.exp_manager = ExperienceManager()
 
     def perceive(self, event):
@@ -43,8 +44,12 @@ class ZootopiaAgent:
         核心循环：检索记忆 -> 思考(CoT) -> 说话
         """
         # 1. 检索相关记忆
-        related_memories = self.memory.retrieve(current_context)
-        memory_text = "\n".join([f"- {m}" for m in related_memories])
+        related_memories = self.memory.retrieve(current_context, k=3)
+        # 格式化记忆内容，把 A-MEM 生成的高级属性展示给 LLM
+        memory_text = "\n".join([
+            f"- [标签:{','.join(m['tags'])}] {m['content']} (背景:{m['context']})" 
+            for m in related_memories
+        ])
 
         # 参考 CFGM 论文：Retrieve relevant tips as context
         retrieved_tips = self.exp_manager.retrieve_relevant_tips(current_context, self.name)

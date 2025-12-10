@@ -6,3 +6,4 @@ numpy>=1.24.0
 python-dotenv       
 colorama           
 streamlit
+sentence-transformers>=2.2.2
