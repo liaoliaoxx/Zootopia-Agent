@@ -64,21 +64,42 @@ with st.sidebar:
     
     st.divider()
     
-    # 记忆查看器 (Phase 2 核心)
+    # 记忆查看器 (Phase 2 核心 - 已修正适配 AgenticMemorySystem)
     st.subheader("🧠 记忆库透视 (Memory Matrix)")
     selected_agent = st.selectbox("选择要查看大脑的角色:", ["Judy", "Flash"])
     
+    # 增加一个输入框，让用户可以自定义检索关键词
+    search_query = st.text_input("输入检索关键词:", value="车牌 树懒")
+
     if st.button("刷新记忆库"):
-        # 这里我们要调用 memory.py 的 retrieve 来看最近的记忆
-        # 为了演示，我们简单查一下最近存入的内容
-        # 注意：这里调用的是 semantic search，你可以输入空字符串来hack一下或者写个新方法
-        # 暂时我们用 retrieve("Judy") 来看看它对自己的名字有什么记忆
-        memories = st.session_state.agents[selected_agent].memory.retrieve("车牌 树懒", n_results=5)
+        # 修改点 1: 参数名从 n_results 改为 k
+        # 修改点 2: 使用用户输入的 query
+        agent_memory = st.session_state.agents[selected_agent].memory
+        memories = agent_memory.retrieve(query=search_query, k=5)
         st.session_state.current_view_memories = memories
     
     if "current_view_memories" in st.session_state:
         for mem in st.session_state.current_view_memories:
-            st.info(f"📜 {mem}")
+            # 修改点 3: 解析结构化数据 (Dict) 进行更美观的展示
+            # mem 结构: {'id':..., 'content':..., 'context':..., 'tags':..., 'score':...}
+            
+            with st.container():
+                # 标题显示核心内容的前几十个字
+                content_preview = mem.get('content', '')[:20] + "..."
+                st.markdown(f"**📜 记忆片段**: {content_preview}")
+                
+                # 使用 expander 显示详细信息，保持界面整洁
+                with st.expander("查看详情 (Context & Tags)"):
+                    st.markdown(f"**内容 (Content):**\n{mem.get('content', '')}")
+                    st.markdown(f"**背景 (Context):**\n{mem.get('context', '无')}")
+                    
+                    # 渲染标签
+                    tags = mem.get('tags', [])
+                    if tags:
+                        st.markdown(f"**标签 (Tags):**")
+                        st.markdown(" ".join([f"`{tag}`" for tag in tags if tag]))
+                    
+                    st.caption(f"ID: {mem.get('id')} | Relevance Score: {mem.get('score'):.4f}")
 
 # === 3. 主界面：聊天窗口 ===
 st.header("🎬 Zootopia Social Lab")

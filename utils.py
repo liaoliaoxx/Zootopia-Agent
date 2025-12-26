@@ -6,7 +6,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # 2. 配置 Client
 client = OpenAI(
-    api_key="", # 你的 API KEY
+    api_key="ms-7c52c0a5-85e6-49fb-931c-9fea5a1212ce", # 你的 API KEY
     base_url="https://api-inference.modelscope.cn/v1" 
 )
 
